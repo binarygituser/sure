@@ -1,0 +1,122 @@
+<%= turbo_frame_tag "modal" do %>
+  <%= render DS::Dialog.new do |dialog| %>
+    <% dialog.with_header(title: t(".link_gocardless_title")) %>
+    <% dialog.with_body do %>
+        <% items = local_assigns[:gocardless_items] || @gocardless_items || Current.family.gocardless_items.where.not(secret_id: nil) %>
+        <% if items&.any? %>
+            <%
+            item_for_new_connection = items.find(&:session_valid?)
+            item_needing_connection = items.find { |i| !i.session_valid? }
+            %>
+            <div class="border-t border-primary pt-4 space-y-3">
+            <% items.each do |item| %>
+                <div class="flex items-center justify-between p-3 rounded-lg bg-container border border-primary">
+                <div class="flex items-center gap-3">
+                    <% if item.session_valid? %>
+                    <div class="w-2 h-2 bg-success rounded-full"></div>
+                    <div>
+                        <p class="text-sm font-medium text-primary"><%= item.institution_name_selected || t(".connected_bank") %></p>
+                        <p class="text-xs text-secondary">
+                        <% if item.access_token_expires_at %>
+                          <%= t(".session_expires") %>: <%= item.access_token_expires_at.strftime("%b %d, %Y") %>
+                        <% else %>
+                          <%= item.sync_status_summary || t(".connected") %>
+                        <% end %>
+                        </p>
+                    </div>
+                    <% elsif item.session_expired? %>
+                    <div class="w-2 h-2 bg-warning rounded-full"></div>
+                    <div>
+                        <p class="text-sm font-medium text-primary"><%= item.institution_name_selected || t(".connection") %></p>
+                        <p class="text-xs text-destructive"><%= t(".session_expired") %></p>
+                    </div>
+                    <% else %>
+                    <div class="w-2 h-2 bg-secondary rounded-full"></div>
+                    <div>
+                        <p class="text-sm font-medium text-primary"><%= t(".configured") %></p>
+                        <p class="text-xs text-secondary"><%= t(".ready_to_connect") %></p>
+                    </div>
+                    <% end %>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <% if item.session_valid? %>
+                    <%= button_to sync_gocardless_item_path(item),
+                                    method: :post,
+                                    class: "inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium text-primary bg-container border border-primary hover:bg-surface-inset transition-colors",
+                                    data: { turbo: false } do %>
+                        <%= t(".sync") %>
+                    <% end %>
+                    <% elsif item.session_expired? %>
+                    <%= button_to reauthorize_gocardless_item_path(item),
+                                    method: :post,
+                                    class: "inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium text-white bg-warning hover:opacity-90 transition-colors",
+                                    data: { turbo: false } do %>
+                        <%= t(".reconnect") %>
+                    <% end %>
+                    <% else %>
+                    <%= render DS::Link.new(
+                      text: t(".connect_bank"),
+                      href: select_bank_gocardless_item_path(item),
+                      variant: :primary,
+                      size: :sm,
+                      data: { turbo_frame: "modal" }
+                    ) %>
+                    <% end %>
+
+                    <%= button_to gocardless_item_path(item),
+                                method: :delete,
+                                class: "inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors",
+                                data: { turbo_confirm: t(".remove_confirm") } do %>
+                    <%= t(".remove") %>
+                    <% end %>
+                </div>
+                </div>
+            <% end %>
+
+            <% if item_for_new_connection %>
+                <div class="flex justify-center pt-2">
+                <%= render DS::Button.new(
+                  text: t(".add_connection"),
+                  icon: "plus",
+                  href: new_connection_gocardless_item_path(item_for_new_connection),
+                  variant: :primary,
+                  data: { turbo_method: :post, turbo_frame: "modal" }
+                ) %>
+                </div>
+            <% end %>
+            </div>
+        <% else %>
+            <div class="space-y-4">
+                <div class="flex items-start gap-3">
+                <%= icon("alert-circle", class: "text-warning w-5 h-5 shrink-0 mt-0.5") %>
+                <div class="text-sm text-secondary">
+                    <p class="font-medium text-primary mb-2"><%= t(".not_configured") %></p>
+                    <p><%= t(".not_configured_description") %></p>
+                </div>
+                </div>
+
+                <div class="bg-surface rounded-lg p-4 space-y-2 text-sm">
+                <p class="font-medium text-primary"><%= t(".setup_steps_title") %></p>
+                <ol class="list-decimal list-inside space-y-1 text-secondary">
+                    <li><%= t(".setup_step_1_html") %></li>
+                    <li><%= t(".setup_step_2_html") %></li>
+                    <li><%= t(".setup_step_3") %></li>
+                    <li><%= t(".setup_step_4") %></li>
+                </ol>
+                </div>
+
+                <div class="mt-4">
+                <%= render DS::Link.new(
+                  text: t(".go_to_provider_settings"),
+                  href: settings_providers_path,
+                  variant: :primary,
+                  full_width: true,
+                  data: { turbo: false }
+                ) %>
+                </div>
+            </div>
+        <% end %>
+    <% end %>
+  <% end %>
+<% end %>

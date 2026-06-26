@@ -1,0 +1,113 @@
+<%# locals: (gocardless_item:) %>
+
+<%= tag.div id: dom_id(gocardless_item) do %>
+  <%= render DS::Disclosure.new(variant: :card, open: true) do |disclosure| %>
+    <% disclosure.with_summary_content do %>
+      <div class="flex items-center justify-between gap-2 focus-visible:outline-hidden">
+        <div class="flex items-center gap-2">
+          <%= icon "chevron-right", class: "group-open:rotate-90 motion-safe:transition-transform motion-safe:duration-150" %>
+
+          <div class="flex items-center justify-center h-8 w-8 bg-success/10 rounded-full">
+            <% if gocardless_item.logo.attached? %>
+              <%= image_tag gocardless_item.logo, class: "rounded-full h-full w-full", loading: "lazy" %>
+            <% else %>
+              <div class="flex items-center justify-center">
+                <%= tag.p (gocardless_item.institution_display_name || "G").first.upcase, class: "text-success text-xs font-medium" %>
+              </div>
+            <% end %>
+          </div>
+
+          <div class="pl-1 text-sm">
+            <div class="flex items-center gap-2">
+              <%= tag.p(gocardless_item.institution_name_selected || gocardless_item.institution_name || gocardless_item.name, class: "font-medium text-primary") %>
+              <% if gocardless_item.scheduled_for_deletion? %>
+                <p class="text-destructive text-sm animate-pulse"><%= t(".deletion_in_progress") %></p>
+              <% end %>
+            </div>
+            <p class="text-xs text-secondary"><%= t(".provider_name") %></p>
+            <% if gocardless_item.syncing? %>
+              <div class="text-secondary flex items-center gap-1">
+                <%= icon "loader", size: "sm", class: "animate-spin" %>
+                <%= tag.span t(".syncing") %>
+              </div>
+            <% elsif gocardless_item.requires_update? %>
+              <div class="text-warning flex items-center gap-1">
+                <%= icon "alert-triangle", size: "sm", color: "warning" %>
+                <%= tag.span t(".reconnect") %>
+              </div>
+            <% else %>
+              <p class="text-secondary">
+                <% if gocardless_item.last_synced_at %>
+                  <%= t(".last_synced", time: time_ago_in_words(gocardless_item.last_synced_at)) %>
+                  <% if gocardless_item.sync_status_summary %>
+                    · <%= gocardless_item.sync_status_summary %>
+                  <% end %>
+                <% else %>
+                  <%= t(".never_synced") %>
+                <% end %>
+              </p>
+            <% end %>
+          </div>
+        </div>
+
+        <% if Current.user&.admin? %>
+          <div class="flex items-center gap-2">
+            <% if gocardless_item.requires_update? %>
+              <%= button_to reauthorize_gocardless_item_path(gocardless_item),
+                            method: :post,
+                            class: "inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded-lg text-inverse bg-warning hover:opacity-90 transition-colors",
+                            data: { turbo: false } do %>
+                <%= icon "refresh-cw", size: "sm" %>
+                <%= t(".update") %>
+              <% end %>
+            <% elsif Rails.env.development? %>
+              <%= icon(
+                "refresh-cw",
+                as_button: true,
+                href: sync_gocardless_item_path(gocardless_item)
+              ) %>
+            <% end %>
+
+            <%= render DS::Menu.new do |menu| %>
+              <% menu.with_item(
+                variant: "button",
+                text: t(".delete"),
+                icon: "trash-2",
+                href: gocardless_item_path(gocardless_item),
+                method: :delete,
+                confirm: CustomConfirm.for_resource_deletion(gocardless_item.institution_name_selected || "GoCardless connection", high_severity: true)
+              ) %>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% unless gocardless_item.scheduled_for_deletion? %>
+      <div class="space-y-4 mt-4">
+        <% if gocardless_item.accounts.any? %>
+          <%= render "accounts/index/account_groups", accounts: gocardless_item.accounts %>
+        <% end %>
+
+        <% if gocardless_item.unlinked_accounts_count > 0 %>
+          <div class="p-4 flex flex-col gap-3 items-center justify-center">
+            <p class="text-primary font-medium text-sm"><%= t(".setup_needed") %></p>
+            <p class="text-secondary text-sm"><%= t(".setup_needed_description", count: gocardless_item.unlinked_accounts_count) %></p>
+            <%= render DS::Link.new(
+              text: t(".set_up_accounts"),
+              icon: "settings",
+              variant: "primary",
+              href: setup_accounts_gocardless_item_path(gocardless_item),
+              frame: :modal
+            ) %>
+          </div>
+        <% elsif gocardless_item.accounts.empty? && gocardless_item.gocardless_accounts.empty? %>
+          <div class="p-4 flex flex-col gap-3 items-center justify-center">
+            <p class="text-primary font-medium text-sm"><%= t(".no_accounts_found") %></p>
+            <p class="text-secondary text-sm"><%= t(".no_accounts_found_description") %></p>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+<% end %>

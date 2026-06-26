@@ -1,0 +1,40 @@
+<%# Modal: Link an existing manual account to a GoCardless account %>
+<%= turbo_frame_tag "modal" do %>
+  <%= render DS::Dialog.new do |dialog| %>
+    <% dialog.with_header(title: t(".title")) %>
+
+    <% dialog.with_body do %>
+      <% if @available_gocardless_accounts.blank? %>
+        <div class="p-4 text-sm text-secondary">
+          <p class="mb-2"><%= t(".all_linked") %></p>
+          <ul class="list-disc list-inside space-y-1">
+            <li><%= t(".try_after_sync") %></li>
+            <li><%= t(".unlink_to_move") %></li>
+          </ul>
+        </div>
+      <% else %>
+        <%= form_with url: link_existing_account_gocardless_items_path, method: :post, class: "space-y-4" do %>
+          <%= hidden_field_tag :account_id, @account.id %>
+          <div class="space-y-2 max-h-64 overflow-auto">
+            <% @available_gocardless_accounts.each do |gca| %>
+              <label class="flex items-center gap-3 p-2 rounded border border-secondary hover:border-primary cursor-pointer">
+                <%= radio_button_tag :gocardless_account_id, gca.id, false %>
+                <div class="flex flex-col">
+                  <span class="text-sm text-primary font-medium"><%= gca.name.presence || gca.account_id %></span>
+                  <span class="text-xs text-secondary">
+                    <%= gca.currency %> · <%= t(".balance") %>: <%= number_to_currency((gca.current_balance || 0), unit: gca.currency) %>
+                  </span>
+                </div>
+              </label>
+            <% end %>
+          </div>
+
+          <div class="flex items-center justify-end gap-2">
+            <%= render DS::Button.new(text: t(".link"), variant: :primary, icon: "link-2", type: :submit) %>
+            <%= render DS::Link.new(text: t(".cancel"), variant: :secondary, href: accounts_path, data: { turbo_frame: "_top" }) %>
+          </div>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% end %>
+<% end %>

@@ -163,6 +163,24 @@ Rails.application.routes.draw do
   get ".well-known/oauth-protected-resource", to: "oauth_metadata#protected_resource"
   get ".well-known/oauth-authorization-server", to: "oauth_metadata#authorization_server"
   post "register", to: "oauth_registration#create"
+
+  resources :gocardless_items, only: [ :new, :create, :update, :destroy ] do
+    collection do
+      get :callback
+      post :link_accounts
+      get :select_existing_account
+      post :link_existing_account
+    end
+    member do
+      post :sync
+      get :select_bank
+      post :authorize
+      post :reauthorize
+      get :setup_accounts
+      post :complete_account_setup
+      post :new_connection
+    end
+  end
   use_doorkeeper
   # MFA routes
   resource :mfa, controller: "mfa", only: [ :new, :create ] do

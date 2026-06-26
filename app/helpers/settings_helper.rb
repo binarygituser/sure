@@ -72,6 +72,9 @@ module SettingsHelper
     when "enable_banking"
       return { status: :off } unless @enable_banking_items&.any?
       enable_banking_summary
+    when "gocardless"
+      return { status: :off } unless @gocardless_items&.any?
+      sync_based_summary(key)
     when "coinstats"
       return { status: :off } unless @coinstats_items&.any?
       sync_based_summary(key)

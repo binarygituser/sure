@@ -1,0 +1,191 @@
+<div class="space-y-4">
+  <%
+    gc_link = link_to("GoCardless", "https://gocardless.com/bank-account-data/", target: "_blank", rel: "noopener noreferrer", class: "text-primary font-medium underline")
+  %>
+  <%= render "settings/providers/setup_steps",
+             steps: [
+               t("settings.providers.gocardless_panel.step_1_html", link: gc_link),
+               t("settings.providers.gocardless_panel.step_2"),
+               t("settings.providers.gocardless_panel.step_3"),
+               t("settings.providers.gocardless_panel.callback_url_instruction", callback_url: gocardless_callback_url)
+             ] %>
+
+  <% error_msg = local_assigns[:error_message] || @error_message %>
+  <% if error_msg.present? %>
+    <%= render DS::Alert.new(message: error_msg, variant: :error) %>
+  <% end %>
+
+  <%
+    family = local_assigns[:family] || Current.family
+    gocardless_item = family.gocardless_items.first_or_initialize(name: "GoCardless Connection")
+    is_new_record = gocardless_item.new_record?
+    has_authenticated_connections = family.gocardless_items.where.not(requisition_id: nil).exists?
+  %>
+
+  <%= styled_form_with model: gocardless_item,
+                       url: is_new_record ? gocardless_items_path : gocardless_item_path(gocardless_item),
+                       scope: :gocardless_item,
+                       method: is_new_record ? :post : :patch,
+                       data: { turbo: true },
+                       class: "space-y-3" do |form| %>
+
+    <%= form.select :country_code,
+                  options_for_select([
+                    ["Austria (AT)", "AT"],
+                    ["Belgium (BE)", "BE"],
+                    ["Bulgaria (BG)", "BG"],
+                    ["Croatia (HR)", "HR"],
+                    ["Cyprus (CY)", "CY"],
+                    ["Czech Republic (CZ)", "CZ"],
+                    ["Denmark (DK)", "DK"],
+                    ["Estonia (EE)", "EE"],
+                    ["Finland (FI)", "FI"],
+                    ["France (FR)", "FR"],
+                    ["Germany (DE)", "DE"],
+                    ["Greece (GR)", "GR"],
+                    ["Hungary (HU)", "HU"],
+                    ["Iceland (IS)", "IS"],
+                    ["Ireland (IE)", "IE"],
+                    ["Italy (IT)", "IT"],
+                    ["Latvia (LV)", "LV"],
+                    ["Liechtenstein (LI)", "LI"],
+                    ["Lithuania (LT)", "LT"],
+                    ["Luxembourg (LU)", "LU"],
+                    ["Malta (MT)", "MT"],
+                    ["Netherlands (NL)", "NL"],
+                    ["Norway (NO)", "NO"],
+                    ["Poland (PL)", "PL"],
+                    ["Portugal (PT)", "PT"],
+                    ["Romania (RO)", "RO"],
+                    ["Slovakia (SK)", "SK"],
+                    ["Slovenia (SI)", "SI"],
+                    ["Spain (ES)", "ES"],
+                    ["Sweden (SE)", "SE"],
+                    ["United Kingdom (GB)", "GB"]
+                  ], gocardless_item.country_code),
+                  { label: true, include_blank: t("settings.providers.gocardless_panel.select_country") },
+                  { label: t("settings.providers.gocardless_panel.country_label"), class: "form-field__input" } %>
+
+    <% if has_authenticated_connections && !is_new_record %>
+      <%= render DS::Alert.new(
+            variant: :warning,
+            title: t("settings.providers.gocardless_panel.config_locked_title"),
+            message: t("settings.providers.gocardless_panel.config_locked_message")
+          ) %>
+    <% end %>
+
+    <%= form.text_field :secret_id,
+                        label: t("settings.providers.gocardless_panel.secret_id_label"),
+                        placeholder: is_new_record ? t("settings.providers.gocardless_panel.secret_id_placeholder_new") : t("settings.providers.gocardless_panel.secret_id_placeholder_update"),
+                        value: gocardless_item.secret_id,
+                        disabled: has_authenticated_connections && !is_new_record %>
+
+    <%= form.text_field :secret_key,
+                        label: t("settings.providers.gocardless_panel.secret_key_label"),
+                        placeholder: "[REDACTED]",
+                        type: :password,
+                        disabled: has_authenticated_connections && !is_new_record %>
+
+    <div class="flex justify-end">
+      <%= form.submit is_new_record ? t("settings.providers.gocardless_panel.save_and_connect") : t("settings.providers.gocardless_panel.update_connection") %>
+    </div>
+  <% end %>
+
+  <% items = local_assigns[:gocardless_items] || @gocardless_items || family.gocardless_items.where.not(secret_id: nil) %>
+  <% if items&.any? %>
+    <%
+      item_for_new_connection = items.find(&:session_valid?)
+      item_needing_connection = items.find { |i| !i.session_valid? }
+    %>
+    <div class="border-t border-primary pt-4 space-y-3">
+      <% items.each do |item| %>
+        <div class="flex items-center justify-between p-3 rounded-lg bg-container border border-primary">
+          <div class="flex items-center gap-3">
+            <% if item.syncing? %>
+              <div class="w-2 h-2 bg-inverse rounded-full animate-pulse"></div>
+              <div>
+                <p class="text-sm font-medium text-primary"><%= item.institution_name_selected || t("settings.providers.gocardless_panel.syncing", default: "Syncing") %></p>
+                <p class="text-xs text-secondary"><%= t("settings.providers.gocardless_panel.syncing", default: "Syncing") %></p>
+              </div>
+            <% elsif item.sync_error.present? %>
+              <div class="w-2 h-2 bg-destructive rounded-full"></div>
+              <div>
+                <p class="text-sm font-medium text-primary"><%= item.institution_name_selected || t("settings.providers.gocardless_panel.connection_error") %></p>
+                <p class="text-xs text-destructive" title="<%= item.sync_error %>"><%= item.sync_error.truncate(50) %></p>
+              </div>
+            <% elsif item.session_valid? %>
+              <div class="w-2 h-2 bg-success rounded-full"></div>
+              <div>
+                <p class="text-sm font-medium text-primary"><%= item.institution_name_selected || t("settings.providers.gocardless_panel.connected_bank") %></p>
+                <p class="text-xs text-secondary">
+                  <% if item.access_token_expires_at %>
+                    <%= t("settings.providers.gocardless_panel.session_expires", date: item.access_token_expires_at.strftime("%b %d, %Y")) %>
+                  <% else %>
+                    <%= item.sync_status_summary || t("settings.providers.gocardless_panel.connected") %>
+                  <% end %>
+                </p>
+              </div>
+            <% elsif item.session_expired? %>
+              <div class="w-2 h-2 bg-warning rounded-full"></div>
+              <div>
+                <p class="text-sm font-medium text-primary"><%= item.institution_name_selected || t("settings.providers.gocardless_panel.connection") %></p>
+                <p class="text-xs text-destructive"><%= t("settings.providers.gocardless_panel.session_expired_reconnect") %></p>
+              </div>
+            <% else %>
+              <div class="w-2 h-2 bg-secondary rounded-full"></div>
+              <div>
+                <p class="text-sm font-medium text-primary"><%= t("settings.providers.gocardless_panel.configured") %></p>
+                <p class="text-xs text-secondary"><%= t("settings.providers.gocardless_panel.ready_to_link") %></p>
+              </div>
+            <% end %>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <% if item.session_valid? %>
+              <%= button_to sync_gocardless_item_path(item),
+                            method: :post,
+                            class: "inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium text-primary bg-container border border-primary hover:bg-surface-inset transition-colors",
+                            data: { turbo: false } do %>
+                <%= t("settings.providers.gocardless_panel.sync") %>
+              <% end %>
+            <% elsif item.session_expired? %>
+              <%= button_to reauthorize_gocardless_item_path(item),
+                            method: :post,
+                            class: "inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium text-white bg-warning hover:opacity-90 transition-colors",
+                            data: { turbo: false } do %>
+                <%= t("settings.providers.gocardless_panel.reconnect") %>
+              <% end %>
+            <% else %>
+              <%= render DS::Link.new(
+                text: t("settings.providers.gocardless_panel.connect_bank"),
+                href: select_bank_gocardless_item_path(item),
+                variant: :primary,
+                size: :sm,
+                data: { turbo_frame: "modal" }
+              ) %>
+            <% end %>
+
+            <%= button_to gocardless_item_path(item),
+                          method: :delete,
+                          class: "inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors",
+                          data: { turbo_confirm: t("settings.providers.gocardless_panel.remove_confirm") } do %>
+              <%= t("settings.providers.gocardless_panel.remove") %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+
+      <% if item_for_new_connection %>
+        <div class="flex justify-center pt-2">
+          <%= render DS::Button.new(
+            text: t("settings.providers.gocardless_panel.add_connection"),
+            icon: "plus",
+            href: new_connection_gocardless_item_path(item_for_new_connection),
+            variant: :primary,
+            data: { turbo_method: :post, turbo_frame: "modal" }
+          ) %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>
